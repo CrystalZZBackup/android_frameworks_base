@@ -101,6 +101,7 @@ import android.view.animation.Interpolator;
 import android.view.animation.LinearInterpolator;
 import android.view.animation.PathInterpolator;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -110,6 +111,7 @@ import com.android.internal.statusbar.StatusBarIcon;
 import com.android.internal.util.omni.TaskUtils;
 import com.android.internal.util.omni.OmniSwitchConstants;
 import com.android.keyguard.KeyguardHostView.OnDismissAction;
+import com.android.keyguard.KeyguardStatusView;
 import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.KeyguardUpdateMonitorCallback;
 import com.android.keyguard.ViewMediatorCallback;
@@ -123,6 +125,7 @@ import com.android.systemui.assist.AssistManager;
 import com.android.systemui.doze.DozeHost;
 import com.android.systemui.doze.DozeLog;
 import com.android.systemui.keyguard.KeyguardViewMediator;
+import com.android.systemui.omni.BatteryViewManager;
 import com.android.systemui.omni.StatusBarHeaderMachine;
 import com.android.systemui.qs.QSPanel;
 import com.android.systemui.recents.ScreenPinningRequest;
@@ -324,7 +327,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     // top bar
     StatusBarHeaderView mHeader;
     KeyguardStatusBarView mKeyguardStatusBar;
-    View mKeyguardStatusView;
+    KeyguardStatusView mKeyguardStatusView;
     KeyguardBottomAreaView mKeyguardBottomArea;
     boolean mLeaveOpenOnKeyguardHide;
     KeyguardIndicationController mKeyguardIndicationController;
@@ -371,6 +374,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
     private boolean mRecentsConsumed;
     private boolean mBackConsumed;
     private boolean mDoubleTabSleep;
+    private boolean mEnableTabletNavigation;
+    private BatteryViewManager mBatteryViewManager;
 
     /**
      * {@link android.provider.Settings.System#SCREEN_AUTO_BRIGHTNESS_ADJ} uses the range [-1, 1].
@@ -493,6 +498,45 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
                     Settings.System.STATUS_BAR_WEATHER_ICON_PACK),
                     false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.ENABLE_TABLET_NAVIGATION),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.QS_TILE_EQUAL),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.QS_TILE_COLUMNS),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.QS_TILE_BG_OPACITY),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.STATUS_BAR_CUSTOM_HEADER_SHADOW),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_COLOR),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_SIZE),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_FONT),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_ENABLE),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_DISPLAY),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.System.getUriFor(
+                    Settings.System.LOCK_CLOCK_SHADOW),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.Secure.getUriFor(
+                    Settings.Secure.LOCK_SHORTCUTS_ENABLE),
+                    false, this, UserHandle.USER_ALL);
+            mContext.getContentResolver().registerContentObserver(Settings.Secure.getUriFor(
+                    Settings.Secure.LOCKSCREEN_VOICE_SHORTCUT),
+                    false, this, UserHandle.USER_ALL);
 
             update();
         }
@@ -506,6 +550,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             int showNavBar = Settings.System.getIntForUser(
                     mContext.getContentResolver(), Settings.System.NAVIGATION_BAR_SHOW,
                     -1, mCurrentUserId);
+
             if (showNavBar != -1){
                 boolean showNavBarBool = showNavBar == 1;
                 if (showNavBarBool !=  mShowNavBar){
@@ -523,11 +568,54 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             mDoubleTabSleep = Settings.System.getIntForUser(
                     mContext.getContentResolver(), Settings.System.DOUBLE_TAP_SLEEP_GESTURE, 0, mCurrentUserId) == 1;
 
+            int tabletNavigation = Settings.System.getIntForUser(
+                    mContext.getContentResolver(), Settings.System.ENABLE_TABLET_NAVIGATION, -1, mCurrentUserId);
+            if (tabletNavigation != -1 && mShowNavBar) {
+                boolean tabletNavigationBool = tabletNavigation == 1;
+                if (tabletNavigationBool != mEnableTabletNavigation) {
+                    if (mNavigationBarView != null){
+                        mWindowManager.removeViewImmediate(mNavigationBarView);
+                        mNavigationBarView = null;
+                    }
+                    mEnableTabletNavigation = tabletNavigationBool;
+                    // removing view and immediately adding it afterward is breaking
+                    // WindowManager so add a small delay before adding
+                    mHandler.postDelayed(new Runnable() {
+                        @Override
+                        public void run() {
+                            updateNavigationBar();
+                        }
+                    }, 500);
+                }
+            }
+
             if (mStatusBarWindow != null) {
                 mStatusBarWindow.setDoubleTabSleep(mDoubleTabSleep);
             }
 
-            mHeader.settingsChanged();
+            if (mHeader != null) {
+                mHeader.updateSettings();
+            }
+
+            if (mQSPanel != null) {
+                mQSPanel.updateSettings();
+            }
+
+            if (mNotificationPanel != null) {
+                mNotificationPanel.updateSettings();
+            }
+
+            if (mKeyguardStatusView != null) {
+                mKeyguardStatusView.updateSettings();
+            }
+
+            if (mKeyguardBottomArea != null) {
+                mKeyguardBottomArea.updateSettings();
+            }
+
+            if (mKeyguardStatusBar != null) {
+                mKeyguardStatusBar.updateSettings();
+            }
         }
     }
     private OmniSettingsObserver mOmniSettingsObserver = new OmniSettingsObserver(mHandler);
@@ -742,6 +830,9 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mBackKillTimeout = mContext.getResources().getInteger(
                 com.android.internal.R.integer.config_backKillTimeout);
 
+        mEnableTabletNavigation = Settings.System.getIntForUser(
+                mContext.getContentResolver(), Settings.System.ENABLE_TABLET_NAVIGATION, -1, mCurrentUserId) == 1;
+
         super.start(); // calls createAndAddWindows()
 
         mMediaSessionManager
@@ -849,8 +940,13 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             mShowNavBar = mWindowManagerService.hasNavigationBar();
             if (DEBUG) Log.v(TAG, "hasNavigationBar=" + mShowNavBar);
             if (mShowNavBar) {
-                mNavigationBarView =
-                    (NavigationBarView) View.inflate(context, R.layout.navigation_bar, null);
+                if (mEnableTabletNavigation) {
+                    mNavigationBarView =
+                        (NavigationBarView) View.inflate(context, R.layout.navigation_bar_tablet, null);
+                } else {
+                    mNavigationBarView =
+                        (NavigationBarView) View.inflate(context, R.layout.navigation_bar, null);
+                }
 
                 mNavigationBarView.setDisabledFlags(mDisabled1);
                 mNavigationBarView.setBar(this);
@@ -934,7 +1030,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mHeader = (StatusBarHeaderView) mStatusBarWindow.findViewById(R.id.header);
         mHeader.setActivityStarter(this);
         mKeyguardStatusBar = (KeyguardStatusBarView) mStatusBarWindow.findViewById(R.id.keyguard_header);
-        mKeyguardStatusView = mStatusBarWindow.findViewById(R.id.keyguard_status_view);
+        mKeyguardStatusView = (KeyguardStatusView) mStatusBarWindow.findViewById(R.id.keyguard_status_view);
         mKeyguardBottomArea =
                 (KeyguardBottomAreaView) mStatusBarWindow.findViewById(R.id.keyguard_bottom_area);
         mKeyguardBottomArea.setActivityStarter(this);
@@ -947,9 +1043,6 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
         // set the inital view visibility
         setAreThereNotifications();
-
-        mIconController = new StatusBarIconController(
-                mContext, mStatusBarView, mKeyguardStatusBar, this);
 
         // Background thread for any controllers that need it.
         mHandlerThread = new HandlerThread(TAG, Process.THREAD_PRIORITY_BACKGROUND);
@@ -972,6 +1065,14 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                 // noop
             }
         });
+
+        // must be before StatusBarIconController
+        LinearLayout batteryContainer = (LinearLayout) mStatusBarView.findViewById(R.id.battery_container);
+        mBatteryViewManager = new BatteryViewManager(mContext, batteryContainer, mStatusBarView.getBarTransitions(), null);
+
+        mIconController = new StatusBarIconController(
+                mContext, mStatusBarView, mKeyguardStatusBar, this);
+
         mNetworkController = new NetworkControllerImpl(mContext, mHandlerThread.getLooper());
         mHotspotController = new HotspotControllerImpl(mContext);
         mBluetoothController = new BluetoothControllerImpl(mContext, mHandlerThread.getLooper());
@@ -1050,9 +1151,10 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         mKeyguardStatusBar.setUserSwitcherController(mUserSwitcherController);
         mUserInfoController.reloadUserInfo();
 
+        mBatteryViewManager.setBatteryController(mBatteryController);
         mHeader.setBatteryController(mBatteryController);
-        ((BatteryMeterView) mStatusBarView.findViewById(R.id.battery)).setBatteryController(
-                mBatteryController);
+        /*((BatteryMeterView) mStatusBarView.findViewById(R.id.battery)).setBatteryController(
+                mBatteryController);*/
         mKeyguardStatusBar.setBatteryController(mBatteryController);
         mHeader.setNextAlarmController(mNextAlarmController);
 
@@ -3318,6 +3420,7 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
         setControllerUsers();
         mOmniSettingsObserver.update();
         mAssistManager.onUserSwitched(newUserId);
+        mStatusBarHeaderMachine.updateEnablement();
     }
 
     private void setControllerUsers() {
@@ -4666,8 +4769,13 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
 
         if (mShowNavBar) {
             if (mNavigationBarView == null) {
-                mNavigationBarView =
-                    (NavigationBarView) View.inflate(mContext, R.layout.navigation_bar, null);
+                if (mEnableTabletNavigation) {
+                    mNavigationBarView =
+                        (NavigationBarView) View.inflate(mContext, R.layout.navigation_bar_tablet, null);
+                } else {
+                    mNavigationBarView =
+                        (NavigationBarView) View.inflate(mContext, R.layout.navigation_bar, null);
+                }
 
                 mNavigationBarView.setDisabledFlags(mDisabled1, true);
                 mNavigationBarView.setBar(this);
@@ -4745,9 +4853,16 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
                 if (activityManager.isInLockTaskMode()) {
                     handleLongPressBackRecents(v);
                 } else {
-                    // else long press means kill
-                    mHandler.postDelayed(mKillTask, mBackKillTimeout);
-                    mBackKillPending = true;
+                    final boolean backKillEnabled = Settings.System.getIntForUser(mContext.getContentResolver(),
+                            Settings.System.BUTTON_BACK_KILL_ENABLE, 1, mCurrentUserId) == 1;
+                    final int backKillTimeout = Settings.System.getIntForUser(mContext.getContentResolver(),
+                            Settings.System.BUTTON_BACK_KILL_TIMEOUT, mBackKillTimeout, mCurrentUserId);
+
+                    if (backKillEnabled) {
+                        // else long press means kill
+                        mHandler.postDelayed(mKillTask, backKillTimeout);
+                        mBackKillPending = true;
+                    }
                 }
             } catch (RemoteException e) {
                 Log.d(TAG, "Unable to reach activity manager", e);
@@ -4755,4 +4870,8 @@ public class PhoneStatusBar extends BaseStatusBar implements DemoMode,
             return true;
         }
     };
+
+    protected BatteryViewManager getBatteryViewManager() {
+        return mBatteryViewManager;
+    }
 }

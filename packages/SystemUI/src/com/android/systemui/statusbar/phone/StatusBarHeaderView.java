@@ -29,6 +29,7 @@ import android.database.ContentObserver;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.graphics.drawable.Animatable;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.TransitionDrawable;
 import android.os.UserHandle;
@@ -56,6 +57,8 @@ import com.android.keyguard.KeyguardStatusView;
 import com.android.systemui.BatteryMeterView;
 import com.android.systemui.FontSizeUtils;
 import com.android.systemui.R;
+import com.android.systemui.omni.AbstractBatteryView;
+import com.android.systemui.omni.BatteryViewManager;
 import com.android.systemui.omni.CurrentWeatherView;
 import com.android.systemui.omni.DetailedWeatherView;
 import com.android.systemui.omni.OmniJawsClient;
@@ -78,7 +81,8 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         NextAlarmController.NextAlarmChangeCallback,
         EmergencyListener,
         StatusBarHeaderMachine.IStatusBarHeaderMachineObserver,
-        View.OnLongClickListener {
+        View.OnLongClickListener,
+        BatteryViewManager.BatteryViewManagerObserver {
 
     static final String TAG = "StatusBarHeaderView";
     private boolean mExpanded;
@@ -103,7 +107,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
     private Switch mQsDetailHeaderSwitch;
     private ImageView mQsDetailHeaderProgress;
     private TextView mEmergencyCallsOnly;
-    private TextView mBatteryLevel;
+    //private TextView mBatteryLevel;
     private TextView mAlarmStatus;
 
     private boolean mShowEmergencyCallsOnly;
@@ -146,6 +150,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
 
     private float mCurrentT;
     private boolean mShowingDetail;
+    private BatteryViewManager mBatteryViewManager;
 
     private ImageView mBackgroundImage;
     private Drawable mCurrentBackground;
@@ -184,12 +189,15 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mSystemIconsSuperContainer.setOnClickListener(this);
         mDateGroup = findViewById(R.id.date_group);
         mClock = findViewById(R.id.clock);
+        mClock.setOnClickListener(this);
         mTime = (TextView) findViewById(R.id.time_view);
         mAmPm = (TextView) findViewById(R.id.am_pm_view);
         mMultiUserSwitch = (MultiUserSwitch) findViewById(R.id.multi_user_switch);
         mMultiUserAvatar = (ImageView) findViewById(R.id.multi_user_avatar);
         mDateCollapsed = (TextView) findViewById(R.id.date_collapsed);
+        mDateCollapsed.setOnClickListener(this);
         mDateExpanded = (TextView) findViewById(R.id.date_expanded);
+        mDateExpanded.setOnClickListener(this);
         mSettingsButton = (SettingsButton) findViewById(R.id.settings_button);
         mSettingsContainer = findViewById(R.id.settings_button_container);
         mSettingsButton.setOnClickListener(this);
@@ -199,7 +207,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mQsDetailHeaderSwitch = (Switch) mQsDetailHeader.findViewById(android.R.id.toggle);
         mQsDetailHeaderProgress = (ImageView) findViewById(R.id.qs_detail_header_progress);
         mEmergencyCallsOnly = (TextView) findViewById(R.id.header_emergency_calls_only);
-        mBatteryLevel = (TextView) findViewById(R.id.battery_level);
+        //mBatteryLevel = (TextView) findViewById(R.id.battery_level);
         mAlarmStatus = (TextView) findViewById(R.id.alarm_status);
         mAlarmStatus.setOnClickListener(this);
         mSignalCluster = findViewById(R.id.signal_cluster);
@@ -248,6 +256,9 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mWeatherDetailed.setVisibility(View.INVISIBLE);
         mWeatherDetailed.setWeatherClient(mWeatherClient);
         mShowWeatherDetailed = false;
+
+        LinearLayout batteryContainer = (LinearLayout) findViewById(R.id.battery_container);
+        mBatteryViewManager = new BatteryViewManager(mContext, batteryContainer, null, this);
     }
 
     @Override
@@ -268,7 +279,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
     @Override
     protected void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        FontSizeUtils.updateFontSize(mBatteryLevel, R.dimen.battery_level_text_size);
+        //FontSizeUtils.updateFontSize(mBatteryLevel, R.dimen.battery_level_text_size);
         FontSizeUtils.updateFontSize(mEmergencyCallsOnly,
                 R.dimen.qs_emergency_calls_only_text_size);
         FontSizeUtils.updateFontSize(mDateCollapsed, R.dimen.qs_date_collapsed_size);
@@ -336,7 +347,8 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
 
     public void setBatteryController(BatteryController batteryController) {
         mBatteryController = batteryController;
-        ((BatteryMeterView) findViewById(R.id.battery)).setBatteryController(batteryController);
+        mBatteryViewManager.setBatteryController(mBatteryController);
+        //((BatteryMeterView) findViewById(R.id.battery)).setBatteryController(batteryController);
     }
 
     public void setNextAlarmController(NextAlarmController nextAlarmController) {
@@ -377,6 +389,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         updateAvatarScale();
         updateClockLp();
         requestCaptureValues();
+        mBatteryViewManager.update();
     }
 
     private void updateHeights() {
@@ -399,7 +412,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
                 updateSignalClusterDetachment();
             }
             mEmergencyCallsOnly.setVisibility(mExpanded && mShowEmergencyCallsOnly ? VISIBLE : GONE);
-            mBatteryLevel.setVisibility(mExpanded ? View.VISIBLE : View.GONE);
+            //mBatteryLevel.setVisibility(mExpanded ? View.VISIBLE : View.GONE);
             mWeatherImage.setVisibility((mExpanded && isShowWeatherHeader())? View.VISIBLE : View.INVISIBLE);
         }
     }
@@ -469,7 +482,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
     @Override
     public void onBatteryLevelChanged(int level, boolean pluggedIn, boolean charging) {
         String percentage = NumberFormat.getPercentInstance().format((double) level / 100.0);
-        mBatteryLevel.setText(percentage);
+        //mBatteryLevel.setText(percentage);
     }
 
     @Override
@@ -498,6 +511,9 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mAlarmStatus.setClickable(mNextAlarm != null && mNextAlarm.getShowIntent() != null && !mShowWeatherDetailed);
         mWeatherImage.setClickable(mExpanded && isShowWeatherHeader() && !mShowWeatherDetailed);
         mWeatherDetailed.setClickable(mExpanded && isShowWeatherHeader() && mShowWeatherDetailed);
+        mDateCollapsed.setClickable(mExpanded && !mShowWeatherDetailed);
+        mDateExpanded.setClickable(mExpanded && !mShowWeatherDetailed);
+        mClock.setClickable(mExpanded && !mShowWeatherDetailed);
     }
 
     private void updateClockLp() {
@@ -593,6 +609,10 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
             if (showIntent != null) {
                 mActivityStarter.startPendingIntentDismissingKeyguard(showIntent);
             }
+        } else if (v == mClock && mExpanded) {
+            startAlarmsActivity();
+        } else if ((v == mDateCollapsed || v == mDateExpanded) && mExpanded) {
+            startCalendarActivity();
         } else if (v == mWeatherImage) {
             try {
                 if (!mWeatherDataInvalid && mWeatherData != null) {
@@ -665,6 +685,17 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
                 true /* dismissShade */);
     }
 
+    private void startCalendarActivity() {
+        Intent calIntent = new Intent(Intent.ACTION_MAIN);
+        calIntent.addCategory(Intent.CATEGORY_APP_CALENDAR);
+        mActivityStarter.startActivity(calIntent, true /* dismissShade */);
+    }
+
+    private void startAlarmsActivity() {
+        mActivityStarter.startActivity(new Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS),
+                true /* dismissShade */);
+    }
+
     public void setQSPanel(QSPanel qsp) {
         mQSPanel = qsp;
         if (mQSPanel != null) {
@@ -715,7 +746,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
                     + mSystemIconsContainer.getLeft();
         }
         target.batteryY = mSystemIconsSuperContainer.getTop() + mSystemIconsContainer.getTop();
-        target.batteryLevelAlpha = getAlphaForVisibility(mBatteryLevel);
+        //target.batteryLevelAlpha = getAlphaForVisibility(mBatteryLevel);
         target.settingsAlpha = getAlphaForVisibility(mSettingsContainer);
         target.settingsTranslation = mExpanded
                 ? 0
@@ -785,7 +816,7 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         }
         applyAlpha(mDateCollapsed, values.dateCollapsedAlpha);
         applyAlpha(mDateExpanded, values.dateExpandedAlpha);
-        applyAlpha(mBatteryLevel, values.batteryLevelAlpha);
+        //applyAlpha(mBatteryLevel, values.batteryLevelAlpha);
         applyAlpha(mSettingsContainer, values.settingsAlpha);
         applyAlpha(mSignalCluster, values.signalClusterAlpha);
         if (!mExpanded) {
@@ -942,6 +973,15 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         }
     };
 
+    @Override
+    public void batteryStyleChanged(AbstractBatteryView batteryStyle) {
+    }
+
+    @Override
+    public boolean isExpandedBatteryView() {
+        return true;
+    }
+
     private void doUpdateStatusBarCustomHeader(final Drawable next, final boolean force) {
         if (next != null) {
             if (next != mCurrentBackground) {
@@ -968,6 +1008,19 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
             transitionDrawable.startTransition(1000);
         } else {
             mBackgroundImage.setImageDrawable(dw);
+        }
+        applyHeaderBackgroundShadow();
+    }
+
+    private void applyHeaderBackgroundShadow() {
+        final int headerShadow = Settings.System.getIntForUser(mContext.getContentResolver(),
+                Settings.System.STATUS_BAR_CUSTOM_HEADER_SHADOW, 0,
+                UserHandle.USER_CURRENT);
+
+        if (headerShadow != 0 && mBackgroundImage != null) {
+            ColorDrawable shadow = new ColorDrawable(Color.BLACK);
+            shadow.setAlpha(headerShadow);
+            mBackgroundImage.setForeground(shadow);
         }
     }
 
@@ -1081,13 +1134,13 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         }
     }
 
-    public void settingsChanged() {
+    public void updateSettings() {
         final boolean value = Settings.System.getIntForUser(
                 mContext.getContentResolver(), Settings.System.STATUS_BAR_HEADER_WEATHER,
                 0, UserHandle.USER_CURRENT) == 1;
 
         if (mWeatherClient.isOmniJawsEnabled()) {
-            mWeatherClient.settingsChanged();
+            mWeatherClient.updateSettings();
         }
         // show icon pack change
         if (isShowWeatherHeader() && value) {
@@ -1114,6 +1167,8 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
                 hideWeatherDetailed();
             }
         }
+
+        applyHeaderBackgroundShadow();
     }
 
     private void transition(final View v, final boolean in) {
@@ -1158,9 +1213,10 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mAmPm.setShadowLayer(5, 0, 0, Color.BLACK);
         mDateCollapsed.setShadowLayer(5, 0, 0, Color.BLACK);
         mDateExpanded.setShadowLayer(5, 0, 0, Color.BLACK);
-        mBatteryLevel.setShadowLayer(5, 0, 0, Color.BLACK);
+        //mBatteryLevel.setShadowLayer(5, 0, 0, Color.BLACK);
         mAlarmStatus.setShadowLayer(5, 0, 0, Color.BLACK);
         mWeatherImage.enableTextShadow();
+        mBatteryViewManager.setTextShadow(true);
     }
 
     /**
@@ -1171,8 +1227,9 @@ public class StatusBarHeaderView extends RelativeLayout implements View.OnClickL
         mAmPm.setShadowLayer(0, 0, 0, Color.BLACK);
         mDateCollapsed.setShadowLayer(0, 0, 0, Color.BLACK);
         mDateExpanded.setShadowLayer(0, 0, 0, Color.BLACK);
-        mBatteryLevel.setShadowLayer(0, 0, 0, Color.BLACK);
+        //mBatteryLevel.setShadowLayer(0, 0, 0, Color.BLACK);
         mAlarmStatus.setShadowLayer(0, 0, 0, Color.BLACK);
         mWeatherImage.disableTextShadow();
+        mBatteryViewManager.setTextShadow(false);
     }
 }
