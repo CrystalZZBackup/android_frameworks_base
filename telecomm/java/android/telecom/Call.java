@@ -206,8 +206,14 @@ public final class Call {
          */
         public static final int CAPABILITY_CAN_PAUSE_VIDEO = 0x00100000;
 
+        /**
+         * Call sends responses through connection.
+         * @hide
+         */
+        public static final int CAPABILITY_CAN_SEND_RESPONSE_VIA_CONNECTION = 0x00400000;
+
         //******************************************************************************************
-        // Next CAPABILITY value: 0x00004000
+        // Next CAPABILITY value: 0x00800000
         //******************************************************************************************
 
         /**
@@ -682,6 +688,28 @@ public final class Call {
     private Details mDetails;
 
     /**
+      * when mIsActiveSub True indicates this call belongs to active subscription
+      * Calls belonging to active subscription are shown to user.
+      */
+    private boolean mIsActiveSub = false;
+
+    /**
+     * Set this call object as active subscription.
+     * @hide
+     */
+    public void setActive() {
+        mIsActiveSub = true;
+    }
+
+    /**
+     *  return if this call object belongs to active subscription.
+     * @hide
+     */
+    public boolean isActive() {
+        return mIsActiveSub;
+    }
+
+    /**
      * Obtains the post-dial sequence remaining to be emitted by this {@code Call}, if any.
      *
      * @return The remaining post-dial sequence, or {@code null} if there is no post-dial sequence
@@ -971,19 +999,22 @@ public final class Call {
     }
 
     /** {@hide} */
-    Call(Phone phone, String telecomCallId, InCallAdapter inCallAdapter) {
+    Call(Phone phone, String telecomCallId, InCallAdapter inCallAdapter, boolean isActiveSub) {
         mPhone = phone;
         mTelecomCallId = telecomCallId;
         mInCallAdapter = inCallAdapter;
         mState = STATE_NEW;
+        mIsActiveSub = isActiveSub;
     }
 
     /** {@hide} */
-    Call(Phone phone, String telecomCallId, InCallAdapter inCallAdapter, int state) {
+    Call(Phone phone, String telecomCallId, InCallAdapter inCallAdapter, int state,
+             boolean isActiveSub) {
         mPhone = phone;
         mTelecomCallId = telecomCallId;
         mInCallAdapter = inCallAdapter;
         mState = state;
+        mIsActiveSub = isActiveSub;
     }
 
     /** {@hide} */
@@ -1028,9 +1059,10 @@ public final class Call {
         }
 
         int state = parcelableCall.getState();
-        boolean stateChanged = mState != state;
+        boolean stateChanged = (mState != state) || (mIsActiveSub != parcelableCall.isActive());
         if (stateChanged) {
             mState = state;
+            mIsActiveSub = parcelableCall.isActive();
         }
 
         String parentId = parcelableCall.getParentCallId();

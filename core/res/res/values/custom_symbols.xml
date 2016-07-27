@@ -63,6 +63,11 @@
   <java-symbol type="string" name="global_action_screenshot" />
   <java-symbol type="drawable" name="ic_global_screenrecord" />
   <java-symbol type="string" name="global_action_screenrecord" />
+  <java-symbol type="drawable" name="ic_global_torch_on" />
+  <java-symbol type="drawable" name="ic_global_torch_off" />
+  <java-symbol type="string" name="global_action_torch_on" />
+  <java-symbol type="string" name="global_action_torch_off" />
+  <java-symbol type="string" name="global_actions_toggle_torch_mode" />
 
    <!-- HW button mapping -->
   <java-symbol type="integer" name="config_deviceHardwareKeys" />
@@ -102,4 +107,6 @@
   <!-- lock clock -->
   <java-symbol type="dimen" name="lock_clock_date_font_size" />
   <java-symbol type="dimen" name="lock_clock_time_font_size" />
+
+  <java-symbol type="bool" name="config_useSystemClockforRotationSensor" />
 </resources>

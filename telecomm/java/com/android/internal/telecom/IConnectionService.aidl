@@ -50,7 +50,11 @@ oneway interface IConnectionService {
 
     void reject(String callId);
 
+    void rejectWithMessage(String callId, String message);
+
     void disconnect(String callId);
+
+    void silence(String callId);
 
     void hold(String callId);
 
@@ -71,4 +75,6 @@ oneway interface IConnectionService {
     void swapConference(String conferenceCallId);
 
     void onPostDialContinue(String callId, boolean proceed);
+
+    void setLocalCallHold(String callId, boolean lchState);
 }

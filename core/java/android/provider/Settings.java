@@ -2464,6 +2464,18 @@ public final class Settings {
         public static final String DOZE_PULSE_DURATION_OUT = "doze_pulse_duration_out";
 
         /**
+         * Define if screenshot crop & share is active
+         * @hide
+         */
+        public static final String SCREENSHOT_CROP_AND_SHARE = "screenshot_crop_and_share";
+
+        /**
+         * Define the crop behavior of screenshot crop & share
+         * @hide
+         */
+        public static final String SCREENSHOT_CROP_BEHAVIOR = "screenshot_crop_behavior";
+
+        /**
          * Pulse if there is notifications for ambient display
          * @hide
          */
@@ -3345,6 +3357,11 @@ public final class Settings {
         public static final String VOLUME_BUTTON_WAKE = "volume_button_wake";
 
         /**
+         * @hide
+         */
+        public static final String VOLUME_BUTTON_MUSIC_CONTROL = "volume_button_music_control";
+
+        /**
          * Whether home button press shuld be treated as wake key
          * @hide
          */
@@ -3865,6 +3882,41 @@ public final class Settings {
          */
         public static final String LOCK_CLOCK_DISPLAY = "lockscreen_clock_display";
 
+        /**
+         * @hide
+         */
+        public static final String LOCK_INDICATOR_DISPLAY = "lockscreen_indicator_display";
+
+        /**
+         * @hide
+         */
+        public static final String LOCK_SHORTCUTS_EXPANDED = "lockscreen_shortcuts_expanded";
+
+        /**
+         * never show ime switcher notification
+         * by default its shown in the navbar on devices that supports it
+         * @hide
+         */
+        public static final String STATUS_BAR_IME_NOTIFICATION = "status_bar_ime_notification";
+
+        /**
+         * never show ime switcher button in navbar
+         * @hide
+         */
+        public static final String NAVIGATION_BAR_IME_BUTTON = "navigation_bar_ime_button";
+
+        /** Whether to allow one finger quick settings expansion on the right side of the statusbar.
+         *
+         * @hide
+         */
+        public static final String STATUS_BAR_QUICK_QS_PULLDOWN = "status_bar_quick_qs_pulldown";
+
+        /** some devices have a extra hw button e.g. n3 on the back on the 
+         * fingerprint sensor. allow mapping button to key
+         *
+         * @hide
+         */
+        public static final String BUTTON_EXTRA_KEY_MAPPING = "button_extra_mapping";
 
         /**
          * Settings to backup. This is here so that it's in the same place as the settings
@@ -4915,6 +4967,12 @@ public final class Settings {
         public static final String ADB_ENABLED = Global.ADB_ENABLED;
 
         /**
+         * The hostname for this device
+         * @hide
+         */
+        public static final String DEVICE_HOSTNAME = "device_hostname";
+
+        /**
          * Setting to allow mock locations and location provider status to be injected into the
          * LocationManager service for testing purposes during application development.  These
          * locations and status values  override actual location and status information generated
@@ -5131,21 +5189,37 @@ public final class Settings {
         public static final String LOCK_NUMPAD_RANDOM = "lock_numpad_random";
 
         /**
-         * Quick unlock for Keyguard
-         * @hide
-         */
-        public static final String KEYGUARD_QUICK_UNLOCK = "keyguard_quick_unlock";
-
-        /**
          * Enable voice lockscreen shortcut
          * @hide
          */
-        public static final String LOCKSCREEN_VOICE_SHORTCUT = "lockscreen_voice_shortcut";
+        public static final String LOCK_VOICE_SHORTCUT = "lockscreen_voice_shortcut";
 
         /**
          * @hide
          */
         public static final String LOCK_SHORTCUTS_ENABLE = "lockscreen_shortcuts_enable";
+
+        /**
+         * @hide
+         */
+        public static final String LOCK_SHORTCUTS = "lockscreen_shortcuts";
+
+        /**
+         * @hide
+         */
+        public static final String LOCK_CAMERA_SHORTCUT_ENABLE = "lockscreen_camera_shortcut_enable";
+
+        /**
+         * @hide
+         */
+        public static final String LOCK_LEFT_SHORTCUT_ENABLE = "lockscreen_left_shortcut_enable";
+
+        /**
+         * Disable expanding quick settings on secure lock screens
+         *
+         * @hide
+         */
+        public static final String LOCK_QS_DISABLED = "lockscreen_qs_disabled";
 
         /**
          * Whether lock pattern will vibrate as user enters (0 = false, 1 =
@@ -6722,6 +6796,13 @@ public final class Settings {
         public static final String AIRPLANE_MODE_TOGGLEABLE_RADIOS = "airplane_mode_toggleable_radios";
 
         /**
+         * A Long representing a bitmap of profiles that should be disabled when bluetooth starts.
+         * See {@link android.bluetooth.BluetoothProfile}.
+         * {@hide}
+         */
+        public static final String BLUETOOTH_DISABLED_PROFILES = "bluetooth_disabled_profiles";
+
+        /**
          * The policy for deciding when Wi-Fi should go to sleep (which will in
          * turn switch to using the mobile data as an Internet connection).
          * <p>
@@ -7984,10 +8065,12 @@ public final class Settings {
          * The following keys are supported:
          *
          * <pre>
-         * idle_duration        (long)
+         * idle_duration2       (long)
          * wallclock_threshold  (long)
          * parole_interval      (long)
          * parole_duration      (long)
+         *
+         * idle_duration        (long) // This is deprecated and used to circumvent b/26355386.
          * </pre>
          *
          * <p>
@@ -8793,6 +8876,13 @@ public final class Settings {
          * @hide
          */
         public static final String CONTACT_METADATA_SYNC = "contact_metadata_sync";
+
+        /**
+         * Whether to enable cellular on boot.
+         * The value 1 - enable, 0 - disable
+         * @hide
+         */
+        public static final String ENABLE_CELLULAR_ON_BOOT = "enable_cellular_on_boot";
     }
 
     /**

@@ -18,7 +18,7 @@
     <item android:state_pressed="true"
         android:drawable="@drawable/ic_global_dnd_total_silence_white"/>
     <item android:state_selected="true"
-        android:drawable="@drawable/ic_global_dnd_total_silence_white"/>
+        android:drawable="@drawable/ic_global_dnd_total_silence_tint"/>
     <item android:drawable="@drawable/ic_global_dnd_total_silence_tint"/>
 </selector>
 

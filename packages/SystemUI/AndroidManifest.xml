@@ -144,6 +144,10 @@
     <!-- weather -->
     <uses-permission android:name="org.omnirom.omnijaws.READ_WEATHER" />
 
+    <!-- Sync tile -->
+    <uses-permission android:name="android.permission.READ_SYNC_SETTINGS" />
+    <uses-permission android:name="android.permission.WRITE_SYNC_SETTINGS" />
+
     <application
         android:name=".SystemUIApplication"
         android:persistent="true"
@@ -273,6 +277,13 @@
         <receiver android:name=".screenshot.GlobalScreenshot$DeleteScreenshotReceiver"
                   android:process=":screenshot"
                   android:exported="false" />
+
+        <!-- Callback for editing screenshot notification -->
+        <activity android:name=".screenshot.GlobalScreenshot$EditScreenshotActivity"
+                  android:process=":screenshot"
+                  android:exported="false"
+                  android:taskAffinity=""
+                  android:excludeFromRecents="true" />
 
         <!-- started from UsbDeviceSettingsManager -->
         <activity android:name=".usb.UsbConfirmActivity"
@@ -453,5 +464,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name=".screenshot.ScreenshotEditor"
+            android:theme="@style/ScreenshotEditorStyle" />
+
     </application>
 </manifest>

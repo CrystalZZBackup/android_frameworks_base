@@ -101,6 +101,9 @@ public abstract class ConnectionService extends Service {
     private static final int MSG_ANSWER_VIDEO = 17;
     private static final int MSG_MERGE_CONFERENCE = 18;
     private static final int MSG_SWAP_CONFERENCE = 19;
+    private static final int MSG_REJECT_WITH_MESSAGE = 20;
+    private static final int MSG_SILENCE = 21;
+    private static final int MSG_SET_LOCAL_HOLD = 22;
 
     private static Connection sNullConnection;
 
@@ -166,6 +169,19 @@ public abstract class ConnectionService extends Service {
         }
 
         @Override
+        public void rejectWithMessage(String callId, String message) {
+            SomeArgs args = SomeArgs.obtain();
+            args.arg1 = callId;
+            args.arg2 = message;
+            mHandler.obtainMessage(MSG_REJECT_WITH_MESSAGE, args).sendToTarget();
+        }
+
+        @Override
+        public void silence(String callId) {
+            mHandler.obtainMessage(MSG_SILENCE, callId).sendToTarget();
+        }
+
+        @Override
         public void disconnect(String callId) {
             mHandler.obtainMessage(MSG_DISCONNECT, callId).sendToTarget();
         }
@@ -196,6 +212,14 @@ public abstract class ConnectionService extends Service {
         @Override
         public void stopDtmfTone(String callId) {
             mHandler.obtainMessage(MSG_STOP_DTMF_TONE, callId).sendToTarget();
+        }
+
+        @Override
+        public void setLocalCallHold(String callId, boolean lchState) {
+            SomeArgs args = SomeArgs.obtain();
+            args.arg1 = callId;
+            args.argi1 = lchState ? 1 : 0;
+            mHandler.obtainMessage(MSG_SET_LOCAL_HOLD, args).sendToTarget();
         }
 
         @Override
@@ -296,8 +320,20 @@ public abstract class ConnectionService extends Service {
                 case MSG_REJECT:
                     reject((String) msg.obj);
                     break;
+                case MSG_REJECT_WITH_MESSAGE: {
+                    SomeArgs args = (SomeArgs) msg.obj;
+                    try {
+                        reject((String) args.arg1, (String) args.arg2);
+                    } finally {
+                        args.recycle();
+                    }
+                    break;
+                }
                 case MSG_DISCONNECT:
                     disconnect((String) msg.obj);
+                    break;
+                case MSG_SILENCE:
+                    silence((String) msg.obj);
                     break;
                 case MSG_HOLD:
                     hold((String) msg.obj);
@@ -322,6 +358,17 @@ public abstract class ConnectionService extends Service {
                 case MSG_STOP_DTMF_TONE:
                     stopDtmfTone((String) msg.obj);
                     break;
+                case MSG_SET_LOCAL_HOLD: {
+                    SomeArgs args = (SomeArgs) msg.obj;
+                    try {
+                        String callId = (String) args.arg1;
+                        boolean lchStatus = (args.argi1 == 1);
+                        setLocalCallHold(callId, lchStatus);
+                    } finally {
+                        args.recycle();
+                    }
+                    break;
+                }
                 case MSG_CONFERENCE: {
                     SomeArgs args = (SomeArgs) msg.obj;
                     try {
@@ -584,6 +631,14 @@ public abstract class ConnectionService extends Service {
                 mAdapter.setExtras(id, extras);
             }
         }
+
+        @Override
+        public void onConnectionEvent(Connection connection, String event) {
+            String id = mIdByConnection.get(connection);
+            if (id != null) {
+                mAdapter.onConnectionEvent(id, event);
+            }
+        }
     };
 
     /** {@inheritDoc} */
@@ -681,6 +736,16 @@ public abstract class ConnectionService extends Service {
         findConnectionForAction(callId, "reject").onReject();
     }
 
+    private void reject(String callId, String rejectWithMessage) {
+        Log.d(this, "reject %s with message", callId);
+        findConnectionForAction(callId, "reject").onReject(rejectWithMessage);
+    }
+
+    private void silence(String callId) {
+        Log.d(this, "silence %s", callId);
+        findConnectionForAction(callId, "silence").onSilence();
+    }
+
     private void disconnect(String callId) {
         Log.d(this, "disconnect %s", callId);
         if (mConnectionById.containsKey(callId)) {
@@ -735,6 +800,11 @@ public abstract class ConnectionService extends Service {
         } else {
             findConferenceForAction(callId, "stopDtmfTone").onStopDtmfTone();
         }
+    }
+
+    private void setLocalCallHold(String callId, boolean lchStatus) {
+        Log.d(this, "setLocalCallHold %s", callId);
+        findConnectionForAction(callId, "setLocalCallHold").setLocalCallHold(lchStatus);
     }
 
     private void conference(String callId1, String callId2) {

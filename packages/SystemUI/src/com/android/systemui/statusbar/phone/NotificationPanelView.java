@@ -26,6 +26,7 @@ import android.app.StatusBarManager;
 import android.content.Context;
 import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
+import android.database.ContentObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -33,6 +34,7 @@ import android.graphics.Rect;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.MathUtils;
 import android.view.MotionEvent;
 import android.view.VelocityTracker;
@@ -47,7 +49,9 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 
 import com.android.internal.logging.MetricsLogger;
+import com.android.internal.widget.LockPatternUtils;
 import com.android.keyguard.KeyguardStatusView;
+import com.android.keyguard.KeyguardUpdateMonitor;
 import com.android.keyguard.omni.CustomLockClock;
 import com.android.systemui.DejankUtils;
 import com.android.systemui.EventLogConstants;
@@ -207,6 +211,12 @@ public class NotificationPanelView extends PanelView implements
     private boolean mHeadsUpAnimatingAway;
     private boolean mLaunchingAffordance;
     private String mLastCameraLaunchSource = KeyguardBottomAreaView.CAMERA_LAUNCH_SOURCE_AFFORDANCE;
+    private float mLastAlpha = -1;
+
+    // Omni additions
+    private boolean mQsSecureExpandDisabled;
+    private LockPatternUtils mLockPatternUtils;
+    private int mOneFingerQuickSettingsIntercept;
 
     private Runnable mHeadsUpExistenceChangedRunnable = new Runnable() {
         @Override
@@ -223,6 +233,7 @@ public class NotificationPanelView extends PanelView implements
     public NotificationPanelView(Context context, AttributeSet attrs) {
         super(context, attrs);
         setWillNotDraw(!DEBUG);
+        mLockPatternUtils = new LockPatternUtils(context);
     }
 
     public void setStatusBar(PhoneStatusBar bar) {
@@ -258,6 +269,7 @@ public class NotificationPanelView extends PanelView implements
         mDozeAnimationInterpolator = AnimationUtils.loadInterpolator(getContext(),
                 android.R.interpolator.linear_out_slow_in);
         mKeyguardBottomArea = (KeyguardBottomAreaView) findViewById(R.id.keyguard_bottom_area);
+
         mQsNavbarScrim = findViewById(R.id.qs_navbar_scrim);
         mAfforanceHelper = new KeyguardAffordanceHelper(this, getContext());
         mLastOrientation = getResources().getConfiguration().orientation;
@@ -472,7 +484,7 @@ public class NotificationPanelView extends PanelView implements
     }
 
     public void setQsExpansionEnabled(boolean qsExpansionEnabled) {
-        mQsExpansionEnabled = qsExpansionEnabled;
+        mQsExpansionEnabled = qsExpansionEnabled && !isQsSecureExpandDisabled();
         mHeader.setClickable(qsExpansionEnabled);
     }
 
@@ -810,7 +822,22 @@ public class NotificationPanelView extends PanelView implements
                 && (event.isButtonPressed(MotionEvent.BUTTON_SECONDARY)
                         || event.isButtonPressed(MotionEvent.BUTTON_TERTIARY));
 
-        return twoFingerDrag || stylusButtonClickDrag || mouseButtonClickDrag;
+        final float w = getMeasuredWidth();
+        final float x = event.getX();
+        float region = (w * (1.f/4.f)); // TODO overlay region fraction?
+        boolean showQsOverride = false;
+
+        switch (mOneFingerQuickSettingsIntercept) {
+            case 1: // Right side pulldown
+                showQsOverride = isLayoutRtl() ? (x < region) : (w - region < x);
+                break;
+            case 2: // Left side pulldown
+                showQsOverride = isLayoutRtl() ? (w - region < x) : (x < region);
+                break;
+        }
+        showQsOverride &= mStatusBarState == StatusBarState.SHADE;
+
+        return !isQsSecureExpandDisabled() && (twoFingerDrag || stylusButtonClickDrag || mouseButtonClickDrag || showQsOverride);
     }
 
     private void handleQsDown(MotionEvent event) {
@@ -1474,6 +1501,7 @@ public class NotificationPanelView extends PanelView implements
         View header = mKeyguardShowing ? mKeyguardStatusBar : mHeader;
         boolean onHeader = x >= header.getX() && x <= header.getX() + header.getWidth()
                 && y >= header.getTop() && y <= header.getBottom();
+
         if (mQsExpanded) {
             return onHeader || (mScrollView.isScrolledToBottom() && yDiff < 0) && isInQsArea(x, y);
         } else {
@@ -1746,6 +1774,19 @@ public class NotificationPanelView extends PanelView implements
 
     private void updateKeyguardBottomAreaAlpha() {
         float alpha = Math.min(getKeyguardContentsAlpha(), 1 - getQsExpansionFraction());
+        if (mLastAlpha == alpha) {
+            return;
+        }
+        mLastAlpha = alpha;
+
+        if (mStatusBarState == StatusBarState.SHADE_LOCKED
+                || mStatusBarState == StatusBarState.KEYGUARD) {
+            if (alpha == 0f) {
+                mKeyguardBottomArea.setVisibility(View.GONE);
+            } else if (mKeyguardBottomArea.getVisibility() == View.GONE) {
+                mKeyguardBottomArea.setVisibility(View.VISIBLE);
+            }
+        }
         mKeyguardBottomArea.setAlpha(alpha);
         mKeyguardBottomArea.setImportantForAccessibility(alpha == 0f
                 ? IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
@@ -1843,6 +1884,7 @@ public class NotificationPanelView extends PanelView implements
         if (mStatusBar.getBarState() == StatusBarState.KEYGUARD
                 || mStatusBar.getBarState() == StatusBarState.SHADE_LOCKED) {
             mAfforanceHelper.animateHideLeftRightIcon();
+            mKeyguardBottomArea.hideShortcutsContainer();
         }
         mNotificationStackScroller.onPanelTrackingStarted();
     }
@@ -1859,6 +1901,7 @@ public class NotificationPanelView extends PanelView implements
                 || mStatusBar.getBarState() == StatusBarState.SHADE_LOCKED)) {
             if (!mHintAnimationRunning) {
                 mAfforanceHelper.reset(true);
+                mKeyguardBottomArea.showShortcutsContainer();
             }
         }
         if (!expand && (mStatusBar.getBarState() == StatusBarState.KEYGUARD
@@ -2037,6 +2080,11 @@ public class NotificationPanelView extends PanelView implements
                 mStatusBar.onPhoneHintStarted();
             }
         }
+    }
+
+    @Override
+    public void onIconLongClicked(boolean rightIcon) {
+        // empty for a reason
     }
 
     @Override
@@ -2462,10 +2510,25 @@ public class NotificationPanelView extends PanelView implements
         }
     }
 
+    private boolean isQsSecureExpandDisabled() {
+        final boolean keyguardOrShadeShowing = mStatusBarState == StatusBarState.KEYGUARD
+                || mStatusBarState == StatusBarState.SHADE_LOCKED;
+        return mLockPatternUtils.isSecure(KeyguardUpdateMonitor.getCurrentUser()) && mQsSecureExpandDisabled &&
+                keyguardOrShadeShowing;
+    }
+
     public void updateSettings() {
         final int qsAlphaValue = Settings.System.getIntForUser(
                 mContext.getContentResolver(), Settings.System.QS_TILE_BG_OPACITY, 255,
                 UserHandle.USER_CURRENT);
         setQSBackgroundAlpha(qsAlphaValue);
+
+        mQsSecureExpandDisabled = Settings.Secure.getIntForUser(
+                mContext.getContentResolver(), Settings.Secure.LOCK_QS_DISABLED, 0,
+                UserHandle.USER_CURRENT) != 0;
+
+        mOneFingerQuickSettingsIntercept = Settings.System.getIntForUser(
+                mContext.getContentResolver(), Settings.System.STATUS_BAR_QUICK_QS_PULLDOWN, 0,
+                UserHandle.USER_CURRENT);
     }
 }
